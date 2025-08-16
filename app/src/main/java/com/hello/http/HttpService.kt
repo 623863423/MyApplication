@@ -17,7 +17,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * 前台 HTTP 服务：串行启动、稳点击、统一彻底收尾
+ * 前台 HTTP 服务：串行启动、稳点击、统一彻底收
  */
 class HttpService : Service() {
 
