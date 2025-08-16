@@ -1,0 +1,218 @@
+<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuickDrop</title>
+<style>
+    :root { --bg:#000; --fg:#fff; --mut:#9aa0a6; --line:#222; --link:#9ecbff; }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto}
+    .wrap{max-width:900px; height:100dvh; min-height:100vh; margin:0 auto; padding:12px; display:flex; flex-direction:column; gap:10px}
+    .card{border:1px solid var(--line); border-radius:12px; display:flex; flex-direction:column; flex:1; min-height:0}
+    .hist{flex:1; min-height:0; overflow:auto; padding:10px 12px}
+    .hist.drop{ outline:2px dashed #333; outline-offset:-4px; background:rgba(255,255,255,0.03) }
+    .comp{border-top:1px solid var(--line); padding:10px 12px; display:flex; gap:12px; align-items:stretch}
+    .mono{font-family:ui-monospace,Consolas,monospace}
+    .link{color:var(--link); cursor:pointer; user-select:none; text-decoration:none; white-space:nowrap}
+    .link:active{color:#2196F3}
+    .mut{color:var(--mut); font-size:13px}
+
+    textarea{flex:1; min-height:100px; resize:vertical; background:#0b0b0b; color:var(--fg); border:1px solid #222; border-radius:8px; padding:8px 10px}
+    input[type=file]{display:none}
+
+    .acts{display:grid; grid-template-columns:auto auto; column-gap:13px; row-gap:35px;  justify-items:end;  align-self:flex-end; grid-auto-rows:min-content; margin-top:auto;}
+    .acts .link{font-size:14px}
+
+    ul#list{list-style:none; margin:0; padding:0}
+    ul#list li{padding:10px 0; border-bottom:1px dashed #222}
+    pre.plain{white-space:pre-wrap; word-break:break-word; margin:0}
+    img.pic{max-width:100%; height:auto; display:block; border-radius:8px; border:1px solid #222; margin:6px 0; background:#0b0b0b; object-fit:contain}
+    a.dl{ text-decoration:none }
+    a.dl:active{ color:#2196F3 }
+</style>
+
+<div class="wrap">
+    <div class="card">
+        <div class="hist"><ul id="list"></ul></div>
+        <div class="comp">
+            <textarea id="txt" placeholder="输入文本（超过 2500 字将作为 txt 上传）"></textarea>
+            <div class="acts" aria-label="操作">
+                <a id="lsend" class="link" href="#">发送文本</a>
+                <a id="lupload" class="link" href="#">上传文件</a>
+                <a id="lclear" class="link" href="#">清空历史</a>
+                <a id="lshutdown" class="link" href="#">关闭服务</a>
+            </div>
+            <input id="file" type="file">
+        </div>
+    </div>
+</div>
+
+<script>
+    const historyEl = document.querySelector('.hist');
+    const list   = document.querySelector('#list');
+    const txt    = document.querySelector('#txt');
+    const file   = document.querySelector('#file');
+    const lsend = document.querySelector('#lsend');
+    const lupload = document.querySelector('#lupload');
+    const lclear = document.querySelector('#lclear');
+    const lshutdown = document.querySelector('#lshutdown');
+
+    function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+    function human(n){ if(n<1024) return n+' B'; if(n<1024*1024) return (n/1024).toFixed(1)+' KB'; return (n/1024/1024).toFixed(1)+' MB'; }
+    const IMG_RE = /\.(png|jpe?g|webp|gif|bmp|svg)$/i;
+
+    function hasActiveSelectionIn(el){
+      const sel = window.getSelection && window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount===0) return false;
+      for (let i=0;i<sel.rangeCount;i++){
+        const r = sel.getRangeAt(i); if (!r) continue;
+        if (el.contains(r.commonAncestorContainer)) return true;
+      }
+      return false;
+    }
+
+    let lastHtml = '', lastCount = 0;
+    async function refresh(scrollEnd){
+      try{
+        if (document.hidden) return;
+        if (hasActiveSelectionIn(historyEl)) return;
+        const r = await fetch('/list?ts='+Date.now(), {cache:'no-store'});
+        if(!r.ok) throw new Error(await r.text());
+        const j = await r.json();
+        const items = (j.items||[]);
+        const html = items.map(it=>{
+          if (it.kind==='text'){
+            return `<li><pre class="plain">${esc(it.text||'')}</pre><div class="mut">${new Date(it.ts).toLocaleString()}</div></li>`;
+          } else {
+            const url = it.url;
+            const isImg = IMG_RE.test(it.name||'');
+            const sizeStr = human(it.size||0);
+            const timeStr = new Date(it.ts).toLocaleString();
+            if (isImg) {
+              return `<li>
+                <img class="pic" src="${url}" alt="" loading="lazy" decoding="async">
+                <div class="mut">${timeStr} · <a class="dl" href="${url}" download>下载</a></div>
+              </li>`;
+            }
+            const openLink = `<a class="mono" href="${url}" target="_blank" rel="noopener">${esc(it.name)}</a>`;
+            return `<li>
+              ${openLink} · <span class="mut">${sizeStr}</span>
+              <div class="mut">${timeStr} · <a class="dl" href="${url}" download>下载</a></div>
+            </li>`;
+          }
+        }).join('');
+
+        if (html !== lastHtml){
+          list.innerHTML = html;
+          if (scrollEnd || lastCount !== items.length) {
+            historyEl.scrollTop = historyEl.scrollHeight;
+          }
+          lastHtml = html; lastCount = items.length;
+        }
+      }catch(e){ console.error(e); }
+    }
+
+    // 发送文本：Enter 发送，Shift+Enter 换行
+    lsend.addEventListener('click', (e)=>{ e.preventDefault(); sendText(); });
+    txt.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendText(); }
+    });
+
+    async function sendTextValue(v){
+      if (!v || !v.trim()) return;
+      const MAX_CHARS = 2500;
+      if (v.length > MAX_CHARS){
+        const name = genName('message','.txt');
+        await uploadRaw(new Blob([v], {type:'text/plain'}), name);
+      } else {
+        const r = await fetch('/text', { method:'POST', headers:{ 'Content-Type':'text/plain; charset=utf-8' }, body:v });
+        if(!r.ok) throw new Error(await r.text());
+      }
+    }
+    async function sendText(){
+      const v = txt.value; if (!v.trim()) return;
+      try{ await sendTextValue(v); txt.value=''; await refresh(true); }catch(e){ alert('发送失败：'+e.message); }
+    }
+
+    // 上传文件（原样二进制，类型/大小不限制，跨平台无损）
+    lupload.addEventListener('click', (e)=>{ e.preventDefault(); file.click(); });
+    file.onchange = async ()=>{
+      if (!file.files || file.files.length===0) return;
+      const f = file.files[0];
+      try{ await uploadRaw(f); file.value=''; await refresh(true); }
+      catch(e){ alert('上传失败：'+e.message); }
+    };
+
+    // 清空/关闭
+    lclear.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      if (!confirm('确认清空历史吗？此操作不可恢复。')) return;
+      try{
+        const r = await fetch('/clear', {method:'POST'}); if(!r.ok) throw new Error(await r.text());
+        list.innerHTML = ''; lastHtml = ''; lastCount = 0; historyEl.scrollTop = 0;
+        await refresh(true); setTimeout(()=>refresh(true), 200);
+      }catch(err){ alert('清空失败：'+err.message); }
+    });
+
+    lshutdown.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      if (!confirm('确定要关闭服务并退出吗？')) return;
+      try{
+        const r = await fetch('/exit', {method:'POST'}); if(!r.ok) throw new Error(await r.text());
+        // 清理提示 + 将页面跳离服务地址，避免残留
+        alert('服务已关闭。');
+        setTimeout(()=>{ try{ location.replace('about:blank'); }catch(_){ location.href='about:blank'; } }, 100);
+      }catch(err){ alert('关闭失败：'+err.message); }
+    });
+
+    function genName(prefix, ext){
+      const d=new Date(); const p=n=>String(n).padStart(2,'0');
+      return `${prefix}_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${ext}`;
+    }
+
+    async function uploadRaw(file, forceName){
+      const name = forceName || file.name || 'upload.bin';
+      const qs = new URLSearchParams({name});
+      const r = await fetch('/upload?'+qs.toString(), {
+        method:'POST',
+        headers:{'Content-Type':'application/octet-stream','X-File-Size': file.size||0},
+        body:file
+      });
+      if(!r.ok) throw new Error(await r.text());
+    }
+
+    // 拖放上传（文本/文件均可），保持无损
+    (function enableDropZone(el){
+      let dragDepth = 0;
+      const isFileDrag = (e)=>{
+        const dt = e.dataTransfer; if (!dt) return false;
+        if (dt.types && typeof dt.types.includes==='function' && dt.types.includes('Files')) return true;
+        return (dt.files && dt.files.length>0);
+      };
+      el.addEventListener('dragenter',(e)=>{ if (!isFileDrag(e)) return; e.preventDefault(); e.stopPropagation(); if (++dragDepth===1) el.classList.add('drop'); });
+      el.addEventListener('dragover',(e)=>{ if (!isFileDrag(e)) return; e.preventDefault(); try{ e.dataTransfer.dropEffect='copy'; }catch(_){}} );
+      el.addEventListener('dragleave',(e)=>{ if (!isFileDrag(e)) return; e.preventDefault(); e.stopPropagation(); if (--dragDepth<=0){ dragDepth=0; el.classList.remove('drop'); } });
+      el.addEventListener('drop', async (e)=>{
+        if (!isFileDrag(e)) return;
+        e.preventDefault(); e.stopPropagation(); el.classList.remove('drop'); dragDepth=0;
+        const dt = e.dataTransfer;
+        const files = dt.files ? Array.from(dt.files) : [];
+        try{
+          if (files.length){
+            for (const f of files) await uploadRaw(f);
+            await refresh(true);
+          } else if (dt.items){
+            for (const it of dt.items){
+              if (it.kind==='string' && it.type==='text/plain'){
+                const s = await new Promise(res=>it.getAsString(res));
+                if (s && s.trim()) await sendTextValue(s);
+              }
+            }
+            await refresh(true);
+          }
+        }catch(err){ alert('上传失败：'+err.message); }
+      });
+    })(historyEl);
+
+    setInterval(()=>refresh(false), 3000);
+    document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) refresh(false); });
+    refresh(true);
+</script>

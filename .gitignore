@@ -1,0 +1,19 @@
+﻿# IntelliJ / Android Studio
+.idea/
+*.iml
+# Gradle
+.gradle/
+**/build/
+**/out/
+local.properties
+.externalNativeBuild/
+.cxx/
+
+# Sign keys (不要上传)
+*.jks
+*.keystore
+
+# Others
+captures/
+.DS_Store
+Thumbs.db

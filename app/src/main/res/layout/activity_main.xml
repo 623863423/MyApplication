@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- 顶部信息（靠左） -->
+    <LinearLayout
+        android:id="@+id/topInset"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp">
+
+        <!-- 服务地址：只显示 http://IP:端口（不做链接） -->
+        <TextView
+            android:id="@+id/tvUrlTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="服务地址"
+            android:textColor="#DDFFFFFF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/tvUrl"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="http://127.0.0.1:19960"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:fontFamily="monospace"
+            android:paddingTop="4dp"
+            android:paddingBottom="12dp" />
+
+        <!-- 保存目录 + 选择目录（文字链接） -->
+        <LinearLayout
+            android:id="@+id/rowDir"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvDirTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="保存目录："
+                android:textColor="#DDFFFFFF"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tvDir"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="未选择"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tvPick"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="选择目录"
+                android:textColor="#9ecbff"
+                android:textSize="14sp"
+                android:paddingStart="8dp"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 中心：启动服务（文字链接） -->
+    <TextView
+        android:id="@+id/tvStart"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="启动服务"
+        android:textColor="#9ecbff"
+        android:textSize="18sp"
+        android:layout_gravity="center"
+        android:clickable="true"
+        android:focusable="true" />
+
+</FrameLayout>
